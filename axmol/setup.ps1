@@ -1,0 +1,521 @@
+#!/bin/bash
+` # \
+# PowerShell Param statement : every line must end in #\ except the last line must with <#\
+# And, you can't use backticks in this section        #\
+# refer https://gist.github.com/ryanmaclean/a1f3135f49c1ab3fa7ec958ac3f8babe #\
+param( [switch]$updateAdt                    #\
+)                                                <#\
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `
+#vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+# Bash Start ------------------------------------------------------------
+scriptdir="`dirname "${BASH_SOURCE[0]}"`"
+if ! command -v pwsh > /dev/null; then
+    $scriptdir/1k/pwshi.sh
+fi
+pwsh $scriptdir/setup.ps1 "$@"
+# Bash End --------------------------------------------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# emit powershell code, in bash:
+# the here document key can be any, but out-null is valid powershell nop cmdlet
+# echo > /dev/null don't output line-end to termainl
+echo > /dev/null <<"out-null"
+#vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+# Powershell Start ----------------------------------------------------#>
+
+$AX_ROOT = $PSScriptRoot
+
+$Global:is_axmol_engine = Test-Path $(Join-Path $AX_ROOT 'core/axmol.cpp')
+
+function println($message) { Write-Host "axmol: $message" }
+
+# import VersionEx
+. (Join-Path $PSScriptRoot '1k/extensions.ps1')
+
+[VersionEx]$pwsh_ver = [Regex]::Match($PSVersionTable.PSVersion.ToString(), '(\d+\.)+(\*|\d+)').Value
+
+function mkdirs([string]$path) {
+    if (!(Test-Path $path -PathType Container)) {
+        if ($pwsh_ver -ge [VersionEx]'5.0') {
+            New-Item $path -ItemType Directory 1>$null
+        }
+        else {
+            mkdir $path
+        }
+    }
+}
+
+if ($pwsh_ver -lt [VersionEx]'5.0') {
+    $ErrorActionPreference = 'Stop'
+
+    # try setup WMF5.1, require reboot, try run setup.ps1 several times
+    Write-Host "Configuring WMF5.1 ..."
+
+    if ($NtOSVersion.Major -ne 6) {
+        throw "Unsupported OSVersion: $($NtOSVersion.ToString())"
+    }
+    if ($NtOSVersion.Minor -ne 1 -and $NtOSVersion -ne 3) {
+        throw "Only win7 SP1 or win8 supported"
+    }
+
+    $is_win7 = $NtOSVersion.Minor -eq 1
+
+    # [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 5.1 non-win10
+
+    $prefix = Join-Path (Get-Location).Path 'tmp'
+
+    mkdirs $prefix
+    $curl = (New-Object Net.WebClient)
+
+    # .net 4.5.2 prereq by WMF5.1
+    $pkg_out = Join-Path $prefix 'NDP452-KB2901907-x86-x64-AllOS-ENU.exe'
+    if (!(Test-Path $pkg_out -PathType Leaf)) {
+        Write-Host "Downloading $pkg_out ..."
+        $curl.DownloadFile('https://download.microsoft.com/download/E/2/1/E21644B5-2DF2-47C2-91BD-63C560427900/NDP452-KB2901907-x86-x64-AllOS-ENU.exe', $pkg_out)
+        if (!$?) {
+            del $pkg_out
+        }
+    }
+    .\tmp\NDP452-KB2901907-x86-x64-AllOS-ENU.exe /q /norestart
+
+    # WMF5.1: https://learn.microsoft.com/en-us/powershell/scripting/windows-powershell/wmf/setup/install-configure?view=powershell-7.3&source=recommendations#download-and-install-the-wmf-51-package
+    if ($is_win7) {
+        $wmf_pkg = 'Win7AndW2K8R2-KB3191566-x64.zip'
+    }
+    else {
+        $wmf_pkg = 'Win8.1AndW2K12R2-KB3191564-x64.msu'
+    }
+
+    $pkg_out = Join-Path $prefix "$wmf_pkg"
+    if (!(Test-Path $pkg_out -PathType Leaf)) {
+        Write-Host "Downloading $pkg_out ..."
+        $curl.DownloadFile("https://download.microsoft.com/download/6/F/5/6F5FF66C-6775-42B0-86C4-47D41F2DA187/$wmf_pkg", $pkg_out)
+        if (!$?) {
+            del $pkg_out
+        }
+    }
+    if ($is_win7) {
+        echo "Expanding $pkg_out to $prefix"
+        function Expand-Zip($Path, $DestinationPath) {
+            mkdirs $DestinationPath
+            $shell = new-object -com shell.application
+            $zip = $shell.NameSpace($Path)
+            foreach ($item in $zip.items()) {
+                $shell.Namespace($DestinationPath).copyhere($item)
+            }
+        }
+        Expand-Zip -Path $pkg_out -DestinationPath $prefix\WMF51
+        & "$prefix\WMF51\Install-WMF5.1.ps1"
+    }
+    else {
+        wusa.exe $pkg_out /quiet /norestart
+    }
+
+    echo "Configure WMF5.1 success, please retart your computer to finish installation and try again"
+    exit 0
+}
+
+# Check Windows 10 developer mode
+if ($IsWin) {
+    if ($NtOSVersion.Major -ge 10) {
+
+        $IsDevMode = (Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense -eq 1
+
+        if ($IsDevMode) {
+            Write-Output 'axmol: Developer Mode is enabled on this Windows 10+ device.'
+        }
+        else {
+            Write-Warning 'axmol: Developer Mode is currently disabled on this Windows 10+ device.'
+            Write-Warning 'axmol:   Some features (such as creating symbolic links without admin rights) may not work.'
+            Write-Output  'axmol:   Opening the Developer Mode settings page. Please enable it and run this script again.'
+            Start-Process "ms-settings:developers"
+            exit 0
+        }
+
+    }
+    else {
+        Write-Warning 'axmol:  Your system version is below Windows 10.'
+        Write-Warning 'axmol:    Windows 7 / 8.1 do not support Developer Mode and require admin rights for symbolic links.'
+        Write-Warning 'axmol:    Upgrading to Windows 10 or later is strongly recommended.'
+    }
+}
+
+# powershell 7 require mark as global explicit if want access in function via $Global:xxx
+$Global:AX_CLI_ROOT = Join-Path $AX_ROOT 'tools/cmdline'
+
+if ($IsWin) {
+    if ("$env:AX_ROOT" -ne "$AX_ROOT") {
+        $env:AX_ROOT = $AX_ROOT
+        [Environment]::SetEnvironmentVariable('AX_ROOT', $AX_ROOT, 'User')
+    }
+
+    #  checking evaluated env:PATH with system + user
+    $Global:isMeInPath = $env:PATH.Contains($AX_CLI_ROOT)
+    $Global:oldCmdRoot = $null
+    $Global:cmdInfo = Get-Command 'axmol' -ErrorAction SilentlyContinue
+    if ($cmdInfo) {
+        $cmdRootTmp = Split-Path $cmdInfo.Source -Parent
+        if ($cmdRootTmp -ne $AX_CLI_ROOT) {
+            $oldCmdRoot = $cmdRootTmp
+        }
+    }
+
+    function RefreshPath ($strPathList) {
+        if ($strPathList) {
+            $pathList = [System.Collections.ArrayList]($strPathList.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries))
+        }
+        else {
+            $pathList = New-Object System.Collections.ArrayList
+        }
+
+        if ($Global:oldCmdRoot) {
+            $pathList.Remove($Global:oldCmdRoot)
+        }
+
+        if ($Global:isMeInPath) {
+            if ($pathList[0] -ne $Global:AX_CLI_ROOT) {
+                $pathList.Remove($Global:AX_CLI_ROOT)
+                $pathList.Insert(0, $Global:AX_CLI_ROOT)
+            }
+        }
+        else {
+            $pathList.Insert(0, $Global:AX_CLI_ROOT)
+        }
+        return $pathList -join ';'
+    }
+
+    if (!$isMeInPath -or $oldCmdRoot) {
+        # Add cmdline bin to User PATH
+        $strPathList = [Environment]::GetEnvironmentVariable('PATH', 'User')
+        $strPathList = RefreshPath $strPathList
+        [Environment]::SetEnvironmentVariable('PATH', $strPathList, 'User')
+
+        # Re-eval env:PATH to system + users
+        $env:PATH = RefreshPath $env:PATH # sync to PowerShell Terminal
+    }
+
+    $execPolicy = powershell -Command 'Get-ExecutionPolicy'
+    if ($pwsh_ver.Major -gt 5) {
+        $execPolicy = powershell -Command 'Get-ExecutionPolicy'
+        if ($execPolicy -ne 'Bypass') {
+            println "Setting system installed powershell execution policy '$execPolicy'==>'Bypass', please click 'YES' on UAC dialog"
+            Start-Process powershell -ArgumentList '-Command "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force"' -WindowStyle Hidden -Wait -Verb runas
+        }
+        else {
+            println "Nice, the system installed powershell execution policy is '$execPolicy'"
+        }
+    }
+    else {
+        println "Axmol setup.ps1 is running under the system-installed PowerShell with execution policy: $execPolicy"
+    }
+}
+else {
+    # update pwsh profile
+    if (Test-Path $PROFILE -PathType Leaf) {
+        $profileContent = "$(Get-Content $PROFILE -raw)"
+    }
+    else {
+        $profileContent = ''
+    }
+
+    $profileMods = 0
+    $matchRet = [Regex]::Match($profileContent, "env\:AX_ROOT\s+\=\s+.*")
+    if (!$matchRet.Success) {
+        $profileContent += "# Add environment variable AX_ROOT for axmol`n"
+        $profileContent += '$env:AX_ROOT = "{0}"{1}' -f $AX_ROOT, "`n"
+        ++$profileMods
+    }
+    elseif ($env:AX_ROOT -ne $AX_ROOT) {
+        # contains AX_ROOT statement, but not equal us
+        Write-Host "Updating env AX_ROOT from ${env:AX_ROOT} to $AX_ROOT"
+        $profileContent = [Regex]::Replace($profileContent, "env\:AX_ROOT\s+\=\s+.*", "env:AX_ROOT = '$AX_ROOT'")
+        ++$profileMods
+    }
+    if ($profileMods) { $env:AX_ROOT = $AX_ROOT }
+
+    if (!($axmolCmdInfo = (Get-Command axmol -ErrorAction SilentlyContinue)) -or $axmolCmdInfo.Source -ne "$AX_CLI_ROOT/axmol") {
+        $stmt_export = '$env:PATH = "${env:AX_ROOT}/tools/cmdline:${env:PATH}"'
+        if (!$profileContent.Contains($stmt_export)) {
+            $profileContent += "# Add axmol cmdline tool to PATH`n"
+            $profileContent += '$env:PATH = "${env:AX_ROOT}/tools/cmdline:${env:PATH}"'
+            $profileContent += "`n"
+            ++$profileMods
+        }
+        $env:PATH = "${env:AX_ROOT}/tools/cmdline:${env:PATH}"
+    }
+
+    $profileDir = Split-Path $PROFILE -Parent
+    if (!(Test-Path $profileDir -PathType Container)) {
+        mkdirs $profileDir
+    }
+
+    if ($profileMods) {
+        Set-Content $PROFILE -Value $profileContent
+    }
+
+    # update ~/.bashrc, ~/.zshrc
+    function updateUnixProfile($profileFile) {
+        if (!(Test-Path $profileFile -PathType Leaf)) {
+            touch $profileFile
+        }
+        $profileMods = 0
+        $profileContent = "$(Get-Content $profileFile -raw)"
+        $matchRet = [Regex]::Match($profileContent, "export AX_ROOT\=.*")
+        if (!$matchRet.Success) {
+            $profileContent += "# Add environment variable AX_ROOT for axmol`n"
+            $profileContent += 'export AX_ROOT="{0}"{1}' -f $AX_ROOT, "`n"
+            ++$profileMods
+        }
+        else {
+            $stmtLine = 'export AX_ROOT="{0}"' -f $AX_ROOT
+            if ($matchRet.Value -ne $stmtLine) {
+                $profileContent = [Regex]::Replace($profileContent, "export AX_ROOT\=.*", $stmtLine)
+                ++$profileMods
+            }
+        }
+
+        if (!$profileContent.Contains('export PATH=$AX_ROOT/tools/cmdline:')) {
+            $profileContent += "# Add axmol cmdline tool to PATH`n"
+            $profileContent += 'export PATH=$AX_ROOT/tools/cmdline:$PATH' -f "`n"
+            ++$profileMods
+        }
+        if ($profileMods) {
+            Set-Content $profileFile -Value $profileContent
+        }
+    }
+
+    if ($IsMacOS) {
+        # for terminal
+        if ("$env:SHELL" -like '*/zsh') {
+            updateUnixProfile ~/.zshrc
+        }
+        else {
+            updateUnixProfile ~/.bash_profile
+        }
+        # for GUI apps, android studio can find AX_ROOT
+        launchctl setenv AX_ROOT $env:AX_ROOT
+    }
+    elseif ($IsLinux) {
+        # determine distro
+        if ($(Get-Command 'dpkg' -ErrorAction SilentlyContinue)) {
+            $LinuxDistro = 'Debian'
+        }
+        elseif ($(Get-Command 'pacman' -ErrorAction SilentlyContinue)) {
+            $LinuxDistro = 'Arch'
+        }
+        else {
+            $LinuxDistro = 'Linux'
+        }
+
+        # preferred ~/.profile to ensure GUI apps and terminal works
+        updateUnixProfile ~/.profile
+
+        # ~/.profile not read by bash(1), if ~/.bash_profile or ~/.bash_login
+        if (Test-Path ~/.bash_profile -PathType Leaf) {
+            if ("$env:SHELL" -like '*/zsh') {
+                updateUnixProfile ~/.zshrc
+            }
+            else {
+                updateUnixProfile ~/.bashrc
+            }
+        }
+
+        Write-Host "Install Axmol Linux dependencies (one-time)? (y/N) " -NoNewline
+        $answer = Read-Host
+        if ($answer -like 'y*') {
+            if ($LinuxDistro -eq 'Debian') {
+                println "It will take few minutes"
+                $os_name = $PSVersionTable.OS
+                $os_ver = [Regex]::Match($os_name, '\d+(\.\d+)*(-[a-z0-9]+)?').Value
+                if (($os_name -match 'Ubuntu' -and [VersionEx]$os_ver -ge [VersionEx]'24.04') -or
+                    ($os_name -match 'Debian' -and [VersionEx]$os_ver -ge [VersionEx]'13')) {
+                    $webkit2gtk_dev = 'libwebkit2gtk-4.1-dev'
+                }
+                else {
+                    $webkit2gtk_dev = 'libwebkit2gtk-4.0-dev'
+                }
+
+                sudo apt-get update
+                # for vm, libxxf86vm-dev also required
+
+                $DEPENDS = @()
+
+                $DEPENDS += 'libx11-dev'
+                $DEPENDS += 'automake'
+                $DEPENDS += 'libtool'
+                $DEPENDS += 'cmake'
+                $DEPENDS += 'libxmu-dev'
+                $DEPENDS += 'libglu1-mesa-dev'
+                $DEPENDS += 'libgl2ps-dev'
+                $DEPENDS += 'libxi-dev'
+                $DEPENDS += 'libfontconfig1-dev'
+                $DEPENDS += 'libgtk-3-dev'
+                $DEPENDS += $webkit2gtk_dev
+                $DEPENDS += 'binutils'
+                $DEPENDS += 'g++'
+                $DEPENDS += 'libasound2-dev'
+                $DEPENDS += 'libxxf86vm-dev'
+
+                # vlc
+                $DEPENDS += 'libvlc-dev', 'libvlccore-dev', 'vlc'
+
+                # if vlc encouter codec error, install
+                # sudo apt-get install ubuntu-restricted-extras
+                println "Install packages: $DEPENDS ..."
+                if ("$env:GITHUB_ACTIONS" -eq 'true') {
+                    sudo apt-get install --allow-unauthenticated --yes $DEPENDS > /dev/null
+                }
+                else {
+                    sudo apt-get install --allow-unauthenticated --yes $DEPENDS
+                }
+            }
+            elseif ($LinuxDistro -eq 'Arch') {
+                $mirror_list = [System.IO.File]::ReadAllText('/etc/pacman.d/mirrorlist')
+                $tsinghua_mirror = 'https://mirrors.tuna.tsinghua.edu.cn/archlinux/$repo/os/$arch'
+                if (!$mirror_list.Contains($tsinghua_mirror)) {
+                    Write-Host "Are want add tsinghua mirror for speed up package install in china region? (y/N)" -NoNewline
+                    $answer = Read-Host
+                    if ($answer -like 'y*') {
+                        $mirror_list = "$tsinghua_mirror`n$mirror_list"
+                        $mirror_list_tmp_file = (Join-Path $AX_ROOT 'mirrorlist')
+                        [System.IO.File]::WriteAllText($mirror_list_tmp_file, $mirror_list)
+                        sudo mv -f $mirror_list_tmp_file /etc/pacman.d/mirrorlist
+                        sudo pacman -Syyu --noconfirm
+                    }
+                }
+
+                $DEPENDS = @(
+                    'git',
+                    'cmake',
+                    'make',
+                    'libx11',
+                    'libxrandr',
+                    'libxinerama',
+                    'libxcursor',
+                    'libxi',
+                    'fontconfig',
+                    'gtk3',
+                    'webkit2gtk',
+                    'vlc'
+                )
+                sudo pacman -S --needed --noconfirm @DEPENDS
+            }
+            else {
+                println "Warning: current Linux distro isn't officially supported by axmol community"
+            }
+        }
+    }
+}
+
+$1k_script = Join-Path $PSScriptRoot '1k/1kiss.ps1'
+$prefix = Join-Path $PSScriptRoot 'tools/external'
+if (!(Test-Path $prefix -PathType Container)) {
+    mkdirs $prefix
+}
+
+# setup toolchains: glslcc, cmake, ninja, ndk, jdk, ...
+. $1k_script -setupOnly -prefix $prefix @args
+
+if ($updateAdt) {
+    [System.Threading.Thread]::CurrentThread.CurrentCulture = 'en-US'
+    $current_time = Get-Date -UFormat "%a %b %e %T UTC%Z %Y"
+
+    # ---------- Update gradle ----------
+    $gradleVer = $build_profiles['gradle']
+    $aproj_source_root = Join-Path $AX_ROOT 'templates/common/proj.android'
+    $aproj_source_gradle = Join-Path $aproj_source_root 'build.gradle'
+    $aproj_source_gradle_wrapper = Join-Path $aproj_source_root 'gradle/wrapper/'
+    $vernums = $gradleVer.Split('.')
+    if ($vernums.Count -lt 3) {
+        $gradle_tag = "v$gradleVer.0"
+    }
+    else {
+        $gradle_tag = "v$gradleVer"
+    }
+
+    $gradle_settings_file = Join-Path $aproj_source_gradle_wrapper 'gradle-wrapper.properties'
+    $settings_lines = Get-Content $gradle_settings_file
+    $settings_lines[0] = "#$current_time"
+    for ($i = 1; $i -lt $settings_lines.Count; ++$i) {
+        $line_text = $settings_lines[$i]
+        if ($line_text -match '^distributionUrl\s*=.*') {
+            $settings_lines[$i] = [Regex]::Replace($line_text, 'gradle-.+-bin.zip', "gradle-$gradleVer-bin.zip")
+            break
+        }
+    }
+    $settings_content = $settings_lines -join "`n"
+    [System.IO.File]::WriteAllText($gradle_settings_file, $settings_content)
+
+    # download gradle-wrapper.jar gradlew and gradlew.bat from upstream
+    download_file "https://raw.githubusercontent.com/gradle/gradle/$gradle_tag/gradlew" $aproj_source_root
+    download_file "https://raw.githubusercontent.com/gradle/gradle/$gradle_tag/gradlew.bat" $aproj_source_root
+    download_file "https://github.com/gradle/gradle/raw/$gradle_tag/gradle/wrapper/gradle-wrapper.jar" $aproj_source_gradle_wrapper
+
+    function update_gradle_for_test($testName) {
+        $aproj_root = Join-Path $AX_ROOT "tests/$testName/proj.android"
+        Copy-Item $aproj_source_gradle $aproj_root -Force
+        Copy-Item "${aproj_source_gradle_wrapper}*" (Join-Path $aproj_root 'gradle/wrapper') -Force
+
+        Copy-Item (Join-Path $aproj_source_root 'gradlew') $aproj_root -Force
+        Copy-Item (Join-Path $aproj_source_root 'gradlew.bat') $aproj_root -Force
+    }
+
+    $testList = @('cpp-tests', 'fairygui-tests', 'live2d-tests', 'lua-tests', 'unit-tests')
+    foreach ($testName in $testList) {
+        update_gradle_for_test($testName)
+    }
+
+    # ------- Update AGP --------
+    $agpVer = $build_profiles['agp']
+
+    function update_agp($relPath) {
+        $aproj_root = Join-Path $AX_ROOT "$relPath/proj.android"
+        $build_gradle_file = Join-Path $aproj_root 'build.gradle'
+        $build_gradle_content = [System.IO.File]::ReadAllText($build_gradle_file)
+        $update_text = $build_gradle_content -replace '(\d+\.\d+\.\d+)', $agpVer
+        [System.IO.File]::WriteAllText($build_gradle_file, $update_text)
+    }
+    function update_agp_for_test($name) {
+        update_agp "tests/$name"
+    }
+
+    update_agp('templates/common')
+    foreach ($testName in $testList) {
+        update_gradle_for_test($testName)
+        update_agp_for_test($testName)
+    }
+}
+
+if ($IsLinux -and (Test-Path '/etc/wsl.conf' -PathType Leaf)) {
+    $wsl_conf = [System.IO.File]::ReadAllText('/etc/wsl.conf')
+    $wsl_mods = 0
+    if (!$wsl_conf.Contains('appendWindowsPath')) {
+        Write-Host "Are want remove host windows path from WSL? (Y/n)" -NoNewline
+        $answer = Read-Host
+        if ($answer -notlike 'n*') {
+            $wsl_conf += "`n[interop]`nappendWindowsPath=false"
+            ++$wsl_mods
+        }
+    }
+    if ($LinuxDistro -eq 'Arch') {
+        if ($wsl_conf -match 'systemd.*=.*true') {
+            Write-Host "Are want disable systemd to solve Arch WSL graphics issue? (Y/n) " -NoNewline
+            $answer = Read-Host
+            if ($answer -notlike 'n*') {
+                $wsl_conf = $wsl_conf -replace 'systemd.*=.*true', 'systemd=false'
+                ++$wsl_mods
+            }
+        }
+    }
+    if ($wsl_mods) {
+        $wsl_conf_tmp_file = (Join-Path $AX_ROOT 'wsl.conf')
+        [System.IO.File]::WriteAllText($wsl_conf_tmp_file, $wsl_conf)
+        sudo mv -f $wsl_conf_tmp_file /etc/wsl.conf
+        println "Update /etc/wsl.conf success, please run 'wsl --shutdown' on your host windows, then re-enter wsl"
+    }
+}
+
+$1k.pause("setup successfully, please restart the terminal(on linux, need reboot or relogin) to make added system variables take effect")
+
+# Powershell End -------------------------------------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+out-null

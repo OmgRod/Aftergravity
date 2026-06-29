@@ -40,6 +40,11 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules
 )
 
+if (DEFINED ENV{GITHUB_ACTIONS})
+    message("Github Actions Build")
+    add_definitions(-DGITHUB_ACTIONS)
+endif()
+
 # NOTE: The order of the cmake module "include(AXGame...)" statements matters
 include(AXGameEngineOptions)
 include(AXGameEngineSetup)

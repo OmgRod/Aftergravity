@@ -28,7 +28,9 @@
 #include "platform/Application.h"
 
 // Uncomment to enable win32 console
+#ifndef GITHUB_ACTIONS
 #define USE_WIN32_CONSOLE
+#endif
 
 using namespace ax;
 

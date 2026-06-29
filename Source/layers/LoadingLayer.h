@@ -1,3 +1,5 @@
+#pragma once
+
 #include <axmol.h>
 
 using namespace ax;

@@ -45,11 +45,11 @@ include(AXGameEngineOptions)
 include(AXGameEngineSetup)
 
 # The common cross-platforms source files and header files
-file(GLOB_RECURSE GAME_HEADER
+file(GLOB_RECURSE GAME_HEADER CONFIGURE_DEPENDS
   Source/*.h Source/*.hpp
 )
 
-file(GLOB_RECURSE GAME_SOURCE
+file(GLOB_RECURSE GAME_SOURCE CONFIGURE_DEPENDS
   Source/*.cpp Source/*.c
 )
 
@@ -84,6 +84,10 @@ ax_setup_app_config(${APP_NAME})
 
 # Default Platform-specific setup
 include(AXGamePlatformSetup)
+
+include(CPM)
+
+CPMAddPackage("gh:gabime/spdlog#v1.17.0")
 
 # Make sure the AXGameFinalSetup is included at the end of this file
 include(AXGameFinalSetup)

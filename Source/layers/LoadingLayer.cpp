@@ -1,4 +1,5 @@
 #include "LoadingLayer.h"
+#include "MenuLayer.h"
 
 bool LoadingLayer::init() {
     if (!Layer::init()) return false;
@@ -49,12 +50,8 @@ void LoadingLayer::loadAssets() {
 
     sfc->addSpriteFramesWithFile("sheets/cursorSheet.plist");
     sfc->addSpriteFramesWithFile("sheets/inputsSheet.plist");
-    sfc->addSpriteFramesWithFile("sheets/minimapSheetA.plist");
-    sfc->addSpriteFramesWithFile("sheets/minimapSheetB.plist");
-    sfc->addSpriteFramesWithFile("sheets/minimapSheetC.plist");
-    sfc->addSpriteFramesWithFile("sheets/minimapSheetD.plist");
-    sfc->addSpriteFramesWithFile("sheets/minimapSheetE.plist");
-    sfc->addSpriteFramesWithFile("sheets/minimapSheetF.plist");
 
     m_loadingLabel->setString("Done!");
+
+    Director::getInstance()->replaceScene(TransitionFade::create(0.5f, MenuLayer::scene()));
 }

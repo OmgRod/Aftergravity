@@ -1,0 +1,11 @@
+{
+  "langselect": {
+    "title": "Selecione Seu Idioma"
+  },
+  "loading": {
+    "assets": "Carregando ativos...",
+    "done": "Concluído!",
+    "save": "Carregando arquivo de salvamento...",
+    "spritesheets": "Carregando spritesheets..."
+  }
+}

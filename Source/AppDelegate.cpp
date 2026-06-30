@@ -33,6 +33,7 @@
 #include "ImGui/imgui.h"
 #include "ImGui/ImGuiPresenter.h"
 #include "managers/InputManager.h"
+#include "managers/SaveManager.h"
 
 #define USE_AUDIO_ENGINE 1
 
@@ -191,4 +192,6 @@ void AppDelegate::applicationWillEnterForeground()
 #endif
 }
 
-void AppDelegate::applicationWillQuit() {}
+void AppDelegate::applicationWillQuit() {
+    SaveManager::get().save();
+}

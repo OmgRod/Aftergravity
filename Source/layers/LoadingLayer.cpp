@@ -1,5 +1,8 @@
 #include "LoadingLayer.h"
 #include "MenuLayer.h"
+#include "LanguageSelectLayer.h"
+#include "../managers/LanguageManager.h"
+#include "managers/SaveManager.h"
 
 bool LoadingLayer::init() {
     if (!Layer::init()) return false;
@@ -20,8 +23,12 @@ bool LoadingLayer::init() {
 
         this->addChild(logo);
     }
-        
-    if (m_loadingLabel = Label::createWithTTF("Loading assets...", "fonts/8bitoperator_jve.ttf", 32, Vec2::ZERO, TextHAlignment::CENTER, TextVAlignment::TOP)) {
+
+    LanguageManager::get().loadSavedLanguage();
+    
+    m_loadingLabel = Label::createWithTTF(LanguageManager::get().getString("loading.assets"), "fonts/pixel.ttf", 32, Vec2::ZERO, TextHAlignment::CENTER, TextVAlignment::TOP);
+
+    if (m_loadingLabel) {
         m_loadingLabel->setPosition({ winSize.width / 2, winSize.height * 0.1f });
         this->addChild(m_loadingLabel);
     }
@@ -44,14 +51,27 @@ Scene* LoadingLayer::scene() {
 
 void LoadingLayer::loadAssets() {
     auto sfc = SpriteFrameCache::getInstance();
+    
+    // Savefile
+    
+    m_loadingLabel->setString(LanguageManager::get().getString("loading.save"));
+
+    SaveManager::get().load();
+
     // Spritesheets
 
-    m_loadingLabel->setString("Loading spritesheets...");
+    m_loadingLabel->setString(LanguageManager::get().getString("loading.spritesheets"));
 
     sfc->addSpriteFramesWithFile("sheets/cursorSheet.plist");
     sfc->addSpriteFramesWithFile("sheets/inputsSheet.plist");
 
-    m_loadingLabel->setString("Done!");
+    // its finished yay!
 
-    Director::getInstance()->replaceScene(TransitionFade::create(0.5f, MenuLayer::scene()));
+    m_loadingLabel->setString(LanguageManager::get().getString("loading.done"));
+
+    if (SaveManager::get().has("language")) {
+        Director::getInstance()->replaceScene(TransitionFade::create(0.5f, MenuLayer::scene()));
+    } else {
+        Director::getInstance()->replaceScene(TransitionFade::create(0.5f, LanguageSelectLayer::scene()));
+    }
 }

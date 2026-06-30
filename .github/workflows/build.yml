@@ -1,4 +1,4 @@
-name: CI
+name: Build
 
 on:
   push:
@@ -6,86 +6,117 @@ on:
   pull_request:
     branches: [master]
 
-env:
-  BUILD_TYPE: Release
-
 jobs:
-  migrate:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            shell: pwsh
-            build_script: build.ps1
-            migrate_bin: build_x64/bin/Release/sources-migrate.exe
-
-          - os: ubuntu-latest
-            shell: bash
-            build_script: build.sh
-            migrate_bin: build_linux/bin/sources-migrate
-
-          - os: macos-latest
-            shell: bash
-            build_script: build.sh
-            migrate_bin: build/bin/sources-migrate
-
-    runs-on: ${{ matrix.os }}
-
-    permissions:
-      contents: write
+  windows:
+    name: Windows Build
+    runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Clone Axmol
-        shell: ${{ matrix.shell }}
+        shell: pwsh
         run: |
-          git clone --depth=1 https://github.com/axmolengine/axmol "$RUNNER_TEMP/axmol"
+          git clone --depth=1 https://github.com/axmolengine/axmol $env:RUNNER_TEMP\axmol
 
-      - name: Build sources-migrate (Windows)
-        if: runner.os == 'Windows'
+      - name: Build Windows
         shell: pwsh
         run: |
           & "$env:RUNNER_TEMP\axmol\build.ps1" `
             -d "$env:RUNNER_TEMP\axmol" `
-            -xb '--config','Release','--target','sources-migrate'
+            -xb '--config','Release'
 
-      - name: Build sources-migrate (Linux/macOS)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          chmod +x "$RUNNER_TEMP/axmol/build.sh"
-          "$RUNNER_TEMP/axmol/build.sh" \
-            -d "$RUNNER_TEMP/axmol" \
-            -xb --config Release --target sources-migrate
-
-      - name: Migrate sources (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          git checkout main
-          & "$env:RUNNER_TEMP\axmol\build_x64\bin\Release\sources-migrate.exe" `
-            "$PWD" --fuzzy
-
-          Copy-Item "$env:RUNNER_TEMP\axmol\build.ps1" "./build.ps1" -Force
-          git add build.ps1 -f
-
-      - name: Migrate sources (Linux/macOS)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          git checkout main
-
-          "$RUNNER_TEMP/axmol/${{ matrix.migrate_bin }}" \
-            "$PWD" --fuzzy
-
-          cp "$RUNNER_TEMP/axmol/build.sh" ./build.sh
-          git add build.sh -f
-
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
         with:
-          commit_message: Migrate to compile with latest Axmol
-          branch: migrate-to-axmol-latest
-          create_branch: true
-          push_options: --force
+          name: Windows-Build
+          path: |
+            ${{ runner.temp }}\axmol\build_x64\bin\Release\**
+
+
+  macos:
+    name: macOS Build
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install cmake ninja
+
+      - name: Clone Axmol
+        run: |
+          git clone --depth=1 https://github.com/axmolengine/axmol $RUNNER_TEMP/axmol
+
+      - name: Build macOS
+        run: |
+          chmod +x $RUNNER_TEMP/axmol/build.sh
+          $RUNNER_TEMP/axmol/build.sh -d $RUNNER_TEMP/axmol -xb --config Release
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-Build
+          path: |
+            ${{ runner.temp }}/axmol/build/bin/Release/**
+
+
+  emscripten:
+    name: Web (Emscripten) Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build python3
+
+      - name: Setup Emscripten
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git $RUNNER_TEMP/emsdk
+          cd $RUNNER_TEMP/emsdk
+          ./emsdk install latest
+          ./emsdk activate latest
+
+      - name: Clone Axmol
+        run: |
+          git clone --depth=1 https://github.com/axmolengine/axmol $RUNNER_TEMP/axmol
+
+      - name: Build Web
+        shell: bash
+        run: |
+          source $RUNNER_TEMP/emsdk/emsdk_env.sh
+          chmod +x $RUNNER_TEMP/axmol/build_web.sh
+          $RUNNER_TEMP/axmol/build_web.sh -d $RUNNER_TEMP/axmol -xb --config Release
+
+      - name: Upload Web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Web-Build
+          path: |
+            ${{ runner.temp }}/axmol/bin/web/**
+
+
+  package:
+    name: Collect All Artifacts
+    runs-on: ubuntu-latest
+    needs: [windows, macos, emscripten]
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Upload combined archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: All-Builds
+          path: artifacts

@@ -7,5 +7,13 @@
     "done": "Concluído!",
     "save": "Carregando arquivo de salvamento...",
     "spritesheets": "Carregando spritesheets..."
+  },
+  "menu": {
+    "continue": "Continuar",
+    "copyright": "© OmgRod {year}. Todos os direitos reservados. Não redistribua!",
+    "credits": "Créditos",
+    "exit": "Sair",
+    "newgame": "Novo Jogo",
+    "settings": "Configurações"
   }
 }

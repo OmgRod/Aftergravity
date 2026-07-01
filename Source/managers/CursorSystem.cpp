@@ -49,8 +49,36 @@ bool CursorSystem::init() {
     return true;
 }
 
+void CursorSystem::syncMousePosition() {
+    if (auto* win = getGLFWWindow()) {
+        double x = 0.0;
+        double y = 0.0;
+        glfwGetCursorPos(win, &x, &y);
+
+        auto director = Director::getInstance();
+        auto glView = director->getGLView();
+        auto frameSize = glView->getFrameSize();
+        auto visibleSize = director->getVisibleSize();
+        auto origin = director->getVisibleOrigin();
+
+        float scaleX = visibleSize.width / frameSize.width;
+        float scaleY = visibleSize.height / frameSize.height;
+
+        float cx = static_cast<float>(x) * scaleX + origin.x;
+
+        float cy = visibleSize.height - static_cast<float>(y) * scaleY + origin.y;
+
+        _mousePos = Vec2(cx, cy);
+
+        if (_cursor) {
+            _cursor->setPosition(_mousePos);
+        }
+    }
+}
+
 void CursorSystem::update(float dt) {
     hideSysCursor();
+    syncMousePosition();
 }
 
 void CursorSystem::initCursor(const std::string& frameName) {

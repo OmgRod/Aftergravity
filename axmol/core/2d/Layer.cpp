@@ -57,6 +57,34 @@ Layer* Layer::create()
     return ret;
 }
 
+void Layer::onEnter()
+{
+    Node::onEnter();
+
+    if (_keyboardListener == nullptr)
+    {
+        _keyboardListener = EventListenerKeyboard::create();
+        _keyboardListener->onKeyPressed = [this](EventKeyboard::KeyCode keyCode, Event*) {
+            if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE || keyCode == EventKeyboard::KeyCode::KEY_BACK)
+            {
+                keyBackClicked();
+            }
+        };
+        getEventDispatcher()->addEventListenerWithSceneGraphPriority(_keyboardListener, this);
+    }
+}
+
+void Layer::onExit()
+{
+    if (_keyboardListener != nullptr)
+    {
+        getEventDispatcher()->removeEventListener(_keyboardListener);
+        _keyboardListener = nullptr;
+    }
+
+    Node::onExit();
+}
+
 /// LayerColor
 LayerColor::LayerColor() {}
 

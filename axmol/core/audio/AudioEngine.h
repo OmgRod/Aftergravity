@@ -109,7 +109,12 @@ public:
         PAUSED
     };
 
+    using AudioChannel = int;
+
     static const int INVALID_AUDIO_ID;
+    static constexpr AudioChannel INVALID_CHANNEL = -1;
+    static constexpr AudioChannel MUSIC_CHANNEL = 0;
+    static constexpr AudioChannel SFX_CHANNEL = 1;
 
     static const float TIME_UNKNOWN;
 
@@ -146,6 +151,39 @@ public:
                            float volume                = 1.0f,
                            const AudioProfile* profile = nullptr);
 
+    static AudioChannel play2dOnChannel(AudioChannel channel,
+                                         std::string_view filePath,
+                                         bool loop                   = false,
+                                         float volume                = 1.0f,
+                                         const AudioProfile* profile = nullptr);
+
+    static AudioChannel play2dOnChannel(AudioChannel channel,
+                                         std::string_view filePath,
+                                         const AudioPlayerSettings& settings,
+                                         const AudioProfile* profile = nullptr);
+
+    static AUDIO_ID playMusic2d(std::string_view filePath,
+                                bool loop                   = true,
+                                float volume                = 1.0f,
+                                const AudioProfile* profile = nullptr);
+
+    static AUDIO_ID playSfx2d(std::string_view filePath,
+                              bool loop                   = false,
+                              float volume                = 1.0f,
+                              const AudioProfile* profile = nullptr);
+
+    static AudioChannel playMusic2dOnChannel(AudioChannel channel,
+                                              std::string_view filePath,
+                                              bool loop                   = true,
+                                              float volume                = 1.0f,
+                                              const AudioProfile* profile = nullptr);
+
+    static AudioChannel playSfx2dOnChannel(AudioChannel channel,
+                                            std::string_view filePath,
+                                            bool loop                   = false,
+                                            float volume                = 1.0f,
+                                            const AudioProfile* profile = nullptr);
+
     /**
      * Play 2d sound.
      *
@@ -177,6 +215,44 @@ public:
                            bool loop                   = false,
                            float volume                = 1.0f,
                            const AudioProfile* profile = nullptr);
+
+    static AudioChannel play3dOnChannel(AudioChannel channel,
+                                         std::string_view filePath,
+                                         const Vec3& position,
+                                         bool loop                   = false,
+                                         float volume                = 1.0f,
+                                         const AudioProfile* profile = nullptr);
+
+    static AudioChannel play3dOnChannel(AudioChannel channel,
+                                         std::string_view filePath,
+                                         const AudioPlayerSettings& settings,
+                                         const AudioProfile* profile = nullptr);
+
+    static AUDIO_ID playMusic3d(std::string_view filePath,
+                                const Vec3& position,
+                                bool loop                   = true,
+                                float volume                = 1.0f,
+                                const AudioProfile* profile = nullptr);
+
+    static AUDIO_ID playSfx3d(std::string_view filePath,
+                              const Vec3& position,
+                              bool loop                   = false,
+                              float volume                = 1.0f,
+                              const AudioProfile* profile = nullptr);
+
+    static AudioChannel playMusic3dOnChannel(AudioChannel channel,
+                                              std::string_view filePath,
+                                              const Vec3& position,
+                                              bool loop                   = true,
+                                              float volume                = 1.0f,
+                                              const AudioProfile* profile = nullptr);
+
+    static AudioChannel playSfx3dOnChannel(AudioChannel channel,
+                                            std::string_view filePath,
+                                            const Vec3& position,
+                                            bool loop                   = false,
+                                            float volume                = 1.0f,
+                                            const AudioProfile* profile = nullptr);
 
     /**
      * Play sound in 3d space.
@@ -216,6 +292,8 @@ public:
      */
     static void setVolume(AUDIO_ID audioID, float volume);
 
+    static void setChannelVolume(AudioChannel channel, float volume);
+
     /**
      * Gets the volume value of an audio instance.
      *
@@ -232,6 +310,8 @@ public:
      */
     static void setPitch(AUDIO_ID audioID, float pitch);
 
+    static void setChannelLoop(AudioChannel channel, bool loop);
+
     /**
      * Gets the volume value of an audio instance.
      *
@@ -240,12 +320,20 @@ public:
      */
     static float getPitch(AUDIO_ID audioID);
 
+    static bool isChannelPlaying(AudioChannel channel);
+
+    static AUDIO_ID getAudioIdForChannel(AudioChannel channel);
+    static std::string_view getFilePathForChannel(AudioChannel channel);
+    static std::string_view getFilePathForAudioId(AUDIO_ID audioID);
+
     /**
      * Pause an audio instance.
      *
      * @param audioID An audioID returned by the play2d function.
      */
     static void pause(AUDIO_ID audioID);
+
+    static void pauseChannel(AudioChannel channel);
 
     /** Pause all playing audio instances. */
     static void pauseAll();
@@ -257,6 +345,8 @@ public:
      */
     static void resume(AUDIO_ID audioID);
 
+    static void resumeChannel(AudioChannel channel);
+
     /** Resume all suspended audio instances. */
     static void resumeAll();
 
@@ -266,6 +356,8 @@ public:
      * @param audioID An audioID returned by the play2d function.
      */
     static void stop(AUDIO_ID audioID);
+
+    static void stopChannel(AudioChannel channel);
 
     /** Stop all audio instances. */
     static void stopAll();
@@ -492,6 +584,12 @@ protected:
 
     // audioID,audioAttribute
     static std::unordered_map<AUDIO_ID, AudioInfo> _audioIDInfoMap;
+
+    // channel,audioID
+    static std::unordered_map<AudioChannel, AUDIO_ID> _channelAudioMap;
+
+    // audioID,channel
+    static std::unordered_map<AUDIO_ID, AudioChannel> _audioChannelMap;
 
     // audio file path,audio IDs
     static hlookup::string_map<std::list<AUDIO_ID>> _audioPathIDMap;

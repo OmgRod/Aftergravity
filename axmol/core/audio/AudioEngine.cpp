@@ -55,6 +55,8 @@ hlookup::string_map<AudioEngine::ProfileHelper> AudioEngine::_audioPathProfileHe
 unsigned int AudioEngine::_maxInstances                        = MAX_AUDIOINSTANCES;
 AudioEngine::ProfileHelper* AudioEngine::_defaultProfileHelper = nullptr;
 std::unordered_map<AUDIO_ID, AudioEngine::AudioInfo> AudioEngine::_audioIDInfoMap;
+std::unordered_map<AudioEngine::AudioChannel, AUDIO_ID> AudioEngine::_channelAudioMap;
+std::unordered_map<AUDIO_ID, AudioEngine::AudioChannel> AudioEngine::_audioChannelMap;
 AudioEngineImpl* AudioEngine::_audioEngineImpl = nullptr;
 
 bool AudioEngine::_isEnabled                                  = true;
@@ -190,7 +192,99 @@ int AudioEngine::play3d(std::string_view filePath, const Vec3& position, bool lo
 {
     return play3d(filePath, ax::AudioPlayerSettings{loop, volume, 0.0f, position});
 }
+AudioEngine::AudioChannel AudioEngine::play2dOnChannel(AudioChannel channel, std::string_view filePath, bool loop,
+                                                        float volume, const AudioProfile* profile)
+{
+    return play2dOnChannel(channel, filePath, ax::AudioPlayerSettings{loop, volume, 0.0f}, profile);
+}
 
+AudioEngine::AudioChannel AudioEngine::play2dOnChannel(AudioChannel channel, std::string_view filePath,
+                                                        const AudioPlayerSettings& settings, const AudioProfile* profile)
+{
+    if (channel != INVALID_CHANNEL)
+    {
+        stopChannel(channel);
+    }
+
+    AUDIO_ID audioID = play2d(filePath, settings, profile);
+    if (audioID != INVALID_AUDIO_ID)
+    {
+        _channelAudioMap[channel] = audioID;
+        _audioChannelMap[audioID] = channel;
+        return channel;
+    }
+
+    return INVALID_CHANNEL;
+}
+
+AudioEngine::AudioChannel AudioEngine::play3dOnChannel(AudioChannel channel, std::string_view filePath, const Vec3& position,
+                                                        bool loop, float volume, const AudioProfile* profile)
+{
+    return play3dOnChannel(channel, filePath, ax::AudioPlayerSettings{loop, volume, 0.0f, position}, profile);
+}
+
+AUDIO_ID AudioEngine::playMusic2d(std::string_view filePath, bool loop, float volume, const AudioProfile* profile)
+{
+    return play2d(filePath, loop, volume, profile);
+}
+
+AUDIO_ID AudioEngine::playSfx2d(std::string_view filePath, bool loop, float volume, const AudioProfile* profile)
+{
+    return play2d(filePath, loop, volume, profile);
+}
+
+AudioEngine::AudioChannel AudioEngine::playMusic2dOnChannel(AudioChannel channel, std::string_view filePath, bool loop,
+                                                              float volume, const AudioProfile* profile)
+{
+    return play2dOnChannel(channel, filePath, loop, volume, profile);
+}
+
+AudioEngine::AudioChannel AudioEngine::playSfx2dOnChannel(AudioChannel channel, std::string_view filePath, bool loop,
+                                                            float volume, const AudioProfile* profile)
+{
+    return play2dOnChannel(channel, filePath, loop, volume, profile);
+}
+
+AUDIO_ID AudioEngine::playMusic3d(std::string_view filePath, const Vec3& position, bool loop, float volume, const AudioProfile* profile)
+{
+    return play3d(filePath, position, loop, volume, profile);
+}
+
+AUDIO_ID AudioEngine::playSfx3d(std::string_view filePath, const Vec3& position, bool loop, float volume, const AudioProfile* profile)
+{
+    return play3d(filePath, position, loop, volume, profile);
+}
+
+AudioEngine::AudioChannel AudioEngine::playMusic3dOnChannel(AudioChannel channel, std::string_view filePath, const Vec3& position,
+                                                              bool loop, float volume, const AudioProfile* profile)
+{
+    return play3dOnChannel(channel, filePath, position, loop, volume, profile);
+}
+
+AudioEngine::AudioChannel AudioEngine::playSfx3dOnChannel(AudioChannel channel, std::string_view filePath, const Vec3& position,
+                                                            bool loop, float volume, const AudioProfile* profile)
+{
+    return play3dOnChannel(channel, filePath, position, loop, volume, profile);
+}
+
+AudioEngine::AudioChannel AudioEngine::play3dOnChannel(AudioChannel channel, std::string_view filePath,
+                                                        const AudioPlayerSettings& settings, const AudioProfile* profile)
+{
+    if (channel != INVALID_CHANNEL)
+    {
+        stopChannel(channel);
+    }
+
+    AUDIO_ID audioID = play3d(filePath, settings, profile);
+    if (audioID != INVALID_AUDIO_ID)
+    {
+        _channelAudioMap[channel] = audioID;
+        _audioChannelMap[audioID] = channel;
+        return channel;
+    }
+
+    return INVALID_CHANNEL;
+}
 AUDIO_ID AudioEngine::play3d(std::string_view filePath,
                              const AudioPlayerSettings& settings,
                              const AudioProfile* profile)
@@ -279,6 +373,85 @@ AUDIO_ID AudioEngine::play3d(std::string_view filePath,
     } while (0);
 
     return ret;
+}
+
+void AudioEngine::stopChannel(AudioChannel channel)
+{
+    auto it = _channelAudioMap.find(channel);
+    if (it != _channelAudioMap.end())
+    {
+        stop(it->second);
+        _channelAudioMap.erase(it);
+        _audioChannelMap.erase(it->second);
+    }
+}
+
+void AudioEngine::pauseChannel(AudioChannel channel)
+{
+    auto it = _channelAudioMap.find(channel);
+    if (it != _channelAudioMap.end())
+    {
+        pause(it->second);
+    }
+}
+
+void AudioEngine::resumeChannel(AudioChannel channel)
+{
+    auto it = _channelAudioMap.find(channel);
+    if (it != _channelAudioMap.end())
+    {
+        resume(it->second);
+    }
+}
+
+void AudioEngine::setChannelVolume(AudioChannel channel, float volume)
+{
+    auto it = _channelAudioMap.find(channel);
+    if (it != _channelAudioMap.end())
+    {
+        setVolume(it->second, volume);
+    }
+}
+
+void AudioEngine::setChannelLoop(AudioChannel channel, bool loop)
+{
+    auto it = _channelAudioMap.find(channel);
+    if (it != _channelAudioMap.end())
+    {
+        setLoop(it->second, loop);
+    }
+}
+
+bool AudioEngine::isChannelPlaying(AudioChannel channel)
+{
+    auto it = _channelAudioMap.find(channel);
+    return it != _channelAudioMap.end() && getState(it->second) == AudioState::PLAYING;
+}
+
+AUDIO_ID AudioEngine::getAudioIdForChannel(AudioChannel channel)
+{
+    auto it = _channelAudioMap.find(channel);
+    if (it != _channelAudioMap.end())
+    {
+        return it->second;
+    }
+    return INVALID_AUDIO_ID;
+}
+
+std::string_view AudioEngine::getFilePathForChannel(AudioChannel channel)
+{
+    const auto audioID = getAudioIdForChannel(channel);
+    return getFilePathForAudioId(audioID);
+}
+
+std::string_view AudioEngine::getFilePathForAudioId(AUDIO_ID audioID)
+{
+    const auto it = _audioIDInfoMap.find(audioID);
+    if (it != _audioIDInfoMap.end())
+    {
+        return it->second.filePath;
+    }
+    return {};
 }
 
 void AudioEngine::setLoop(AUDIO_ID audioID, bool loop)
@@ -401,6 +574,13 @@ void AudioEngine::remove(AUDIO_ID audioID)
         }
         _audioPathIDMap[it->second.filePath].remove(audioID);
         _audioIDInfoMap.erase(audioID);
+
+        auto channelIt = _audioChannelMap.find(audioID);
+        if (channelIt != _audioChannelMap.end())
+        {
+            _channelAudioMap.erase(channelIt->second);
+            _audioChannelMap.erase(channelIt);
+        }
     }
 }
 
@@ -421,6 +601,8 @@ void AudioEngine::stopAll()
     }
     _audioPathIDMap.clear();
     _audioIDInfoMap.clear();
+    _channelAudioMap.clear();
+    _audioChannelMap.clear();
 }
 
 void AudioEngine::uncache(std::string_view filePath)

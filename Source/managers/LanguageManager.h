@@ -8,6 +8,9 @@
 #include <axmol.h>
 #include <string>
 #include <string_view>
+#include <regex>
+#include <sstream>
+#include <utility>
 
 namespace aftergravity {
 
@@ -60,6 +63,22 @@ public:
 
     std::string getString(const std::string& key, aftergravity::Language language);
 
+    template<typename... Args>
+    std::string getString(const std::string& key, Args&&... args)
+    {
+        std::string result = getString(key);
+        (replaceNextPlaceholder(result, toString(std::forward<Args>(args))), ...);
+        return result;
+    }
+
+    template<typename... Args>
+    std::string getString(const std::string& key, aftergravity::Language language, Args&&... args)
+    {
+        std::string result = getString(key, language);
+        (replaceNextPlaceholder(result, toString(std::forward<Args>(args))), ...);
+        return result;
+    }
+
     void saveLanguage();
     void loadSavedLanguage();
 
@@ -77,4 +96,14 @@ private:
     rapidjson::Document _doc;
     aftergravity::Language _currentLanguage = aftergravity::Language::English;
     bool _initialized = false;
+
+    static void replaceNextPlaceholder(std::string& text, const std::string& value);
+
+    template<typename T>
+    static std::string toString(const T& value)
+    {
+        std::ostringstream ss;
+        ss << value;
+        return ss.str();
+    }
 };

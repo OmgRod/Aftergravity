@@ -13,8 +13,8 @@ public:
     bool init() override;
     void update(float dt) override;
 
-
 private:
+    void syncMousePosition();
 
     ax::Sprite* _cursor = nullptr;
     std::string _frameName;

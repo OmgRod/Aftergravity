@@ -41,11 +41,22 @@ namespace ax
  * @{
  */
 
+class EventListenerKeyboard;
+
 /* !!!HACK, the memory model of 'Layer' is identical to 'Node' */
 class AX_DLL Layer : public Node
 {
 public:
     static Layer* create();
+
+    virtual void keyBackClicked() {}
+
+protected:
+    void onEnter() override;
+    void onExit() override;
+
+private:
+    EventListenerKeyboard* _keyboardListener = nullptr;
 };
 
 //

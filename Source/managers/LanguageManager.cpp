@@ -31,7 +31,7 @@ void LanguageManager::setLanguage(aftergravity::Language language)
 
 void LanguageManager::loadLanguage(aftergravity::Language language)
 {
-    std::string code = getLanguageInfo(language).code;
+    std::string code = std::string(getLanguageInfo(language).code);
 
     std::string path = "lang/" + code + ".json";
     std::string fullPath = FileUtils::getInstance()->fullPathForFilename(path);
@@ -168,7 +168,7 @@ std::string LanguageManager::getString(
     const std::string& key,
     aftergravity::Language language)
 {
-    std::string code = getLanguageInfo(language).code;
+    std::string code = std::string(getLanguageInfo(language).code);
 
     std::string path = "lang/" + code + ".json";
     std::string fullPath = FileUtils::getInstance()->fullPathForFilename(path);
@@ -221,3 +221,16 @@ const aftergravity::LanguageInfo& LanguageManager::getLanguageInfo(aftergravity:
     static aftergravity::LanguageInfo fallback{ aftergravity::Language::English, "en", "English" };
     return fallback;
 }
+
+void LanguageManager::replaceNextPlaceholder(std::string& text, const std::string& value)
+{
+    static const std::regex placeholder(R"(\{[^}]*\})");
+
+    std::smatch match;
+
+    if (std::regex_search(text, match, placeholder))
+    {
+        text.replace(match.position(), match.length(), value);
+    }
+}
+

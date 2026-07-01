@@ -316,6 +316,36 @@ public:
      */
     void replaceScene(Scene* scene);
 
+    /** Supported transition types for scene pop animations. */
+    enum class TransitionType
+    {
+        None,
+        Fade,
+        FadeUp,
+        FadeDown,
+        FlipX,
+        FlipY,
+        ZoomFlipX,
+        ZoomFlipY,
+        SlideInL,
+        SlideInR,
+        SlideInT,
+        SlideInB,
+        MoveInL,
+        MoveInR,
+        MoveInT,
+        MoveInB,
+        RotoZoom,
+        JumpZoom,
+        SplitCols,
+        SplitRows,
+        TurnOffTiles,
+        CrossFade
+    };
+
+    /** Pops the current scene and animates the transition to the previous scene. */
+    void popSceneWithTransition(TransitionType transitionType, float duration = 0.5f);
+
     /** Removes the previous scene from the stack if it exists, and returns it
      * If there are less than 2 scenes in the stack, or if there is a 
      * scene switch about to occur, then this call would be invalid, and a nullptr

@@ -13,11 +13,7 @@ class MenuLayer : public Layer {
 
     virtual void update(float dt) override;
 
-    int m_audioID;
-
 public:
     CREATE_FUNC(MenuLayer);
     static Scene* scene();
-
-    virtual ~MenuLayer();
 };

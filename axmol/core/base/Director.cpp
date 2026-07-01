@@ -903,6 +903,122 @@ void Director::popScene()
     }
 }
 
+void Director::popSceneWithTransition(TransitionType transitionType, float duration)
+{
+    AXASSERT(_runningScene != nullptr, "running scene should not null");
+
+    ssize_t c = _scenesStack.size();
+    if (c <= 1)
+    {
+        end();
+        return;
+    }
+
+    if (transitionType == TransitionType::None || duration <= 0.0f)
+    {
+        popScene();
+        return;
+    }
+
+    Scene* currentScene = _scenesStack.back();
+    Scene* previousScene = _scenesStack.at(c - 2);
+
+#if AX_ENABLE_GC_FOR_NATIVE_OBJECTS
+    auto sEngine = ScriptEngineManager::getInstance()->getScriptEngine();
+    if (sEngine)
+    {
+        sEngine->releaseScriptObject(this, currentScene);
+        sEngine->releaseScriptObject(this, previousScene);
+    }
+#endif  // AX_ENABLE_GC_FOR_NATIVE_OBJECTS
+
+    _scenesStack.popBack();
+    _sendCleanupToScene = true;
+
+    TransitionScene* transitionScene = nullptr;
+    switch (transitionType)
+    {
+        case TransitionType::Fade:
+            transitionScene = TransitionFade::create(duration, previousScene);
+            break;
+        case TransitionType::FadeUp:
+            transitionScene = TransitionFadeUp::create(duration, previousScene);
+            break;
+        case TransitionType::FadeDown:
+            transitionScene = TransitionFadeDown::create(duration, previousScene);
+            break;
+        case TransitionType::FlipX:
+            transitionScene = TransitionFlipX::create(duration, previousScene);
+            break;
+        case TransitionType::FlipY:
+            transitionScene = TransitionFlipY::create(duration, previousScene);
+            break;
+        case TransitionType::ZoomFlipX:
+            transitionScene = TransitionZoomFlipX::create(duration, previousScene);
+            break;
+        case TransitionType::ZoomFlipY:
+            transitionScene = TransitionZoomFlipY::create(duration, previousScene);
+            break;
+        case TransitionType::SlideInL:
+            transitionScene = TransitionSlideInL::create(duration, previousScene);
+            break;
+        case TransitionType::SlideInR:
+            transitionScene = TransitionSlideInR::create(duration, previousScene);
+            break;
+        case TransitionType::SlideInT:
+            transitionScene = TransitionSlideInT::create(duration, previousScene);
+            break;
+        case TransitionType::SlideInB:
+            transitionScene = TransitionSlideInB::create(duration, previousScene);
+            break;
+        case TransitionType::MoveInL:
+            transitionScene = TransitionMoveInL::create(duration, previousScene);
+            break;
+        case TransitionType::MoveInR:
+            transitionScene = TransitionMoveInR::create(duration, previousScene);
+            break;
+        case TransitionType::MoveInT:
+            transitionScene = TransitionMoveInT::create(duration, previousScene);
+            break;
+        case TransitionType::MoveInB:
+            transitionScene = TransitionMoveInB::create(duration, previousScene);
+            break;
+        case TransitionType::RotoZoom:
+            transitionScene = TransitionRotoZoom::create(duration, previousScene);
+            break;
+        case TransitionType::JumpZoom:
+            transitionScene = TransitionJumpZoom::create(duration, previousScene);
+            break;
+        case TransitionType::SplitCols:
+            transitionScene = TransitionSplitCols::create(duration, previousScene);
+            break;
+        case TransitionType::SplitRows:
+            transitionScene = TransitionSplitRows::create(duration, previousScene);
+            break;
+        case TransitionType::TurnOffTiles:
+            transitionScene = TransitionTurnOffTiles::create(duration, previousScene);
+            break;
+        case TransitionType::CrossFade:
+            transitionScene = TransitionCrossFade::create(duration, previousScene);
+            break;
+        default:
+            transitionScene = TransitionFade::create(duration, previousScene);
+            break;
+    }
+
+    AXASSERT(transitionScene != nullptr, "transition scene should not be null");
+
+#if AX_ENABLE_GC_FOR_NATIVE_OBJECTS
+    if (sEngine)
+    {
+        sEngine->retainScriptObject(this, transitionScene);
+    }
+#endif  // AX_ENABLE_GC_FOR_NATIVE_OBJECTS
+
+    _scenesStack.replace(_scenesStack.size() - 1, transitionScene);
+    _nextScene = transitionScene;
+}
+
 void Director::popToRootScene()
 {
     popToSceneStackLevel(1);

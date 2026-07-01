@@ -135,28 +135,16 @@ private:
 class AX_DLL MenuItemLabel : public MenuItem
 {
 public:
-    /** Creates a MenuItemLabel with a Label and a callback. */
     static MenuItemLabel* create(Node* label, const ccMenuCallback& callback);
-
-    /** Creates a MenuItemLabel with a Label. Target and selector will be nil. */
     static MenuItemLabel* create(Node* label);
 
-    /** Sets a new string to the inner label. */
     void setString(std::string_view label);
-
-    /** Get the inner string of the inner label. */
     std::string_view getString() const;
 
-    /** Gets the color that will be used when the item is disabled. */
     const Color3B& getDisabledColor() const { return _disabledColor; }
-
-    /** Sets the color that will be used when the item is disabled. */
     void setDisabledColor(const Color3B& color) { _disabledColor = color; }
 
-    /** Gets the label that is rendered. */
     Node* getLabel() const { return _label; }
-
-    /** Sets the label that is rendered. */
     void setLabel(Node* node);
 
     // Overrides
@@ -165,24 +153,17 @@ public:
     virtual void unselected() override;
     virtual void setEnabled(bool enabled) override;
 
-    /**
-     */
-    MenuItemLabel() : _originalScale(0.0), _label(nullptr) {}
-    /**
-     * @lua NA
-     */
+    MenuItemLabel() : _originalScale(0.0), _label(nullptr), _isHovered(false) {}
     virtual ~MenuItemLabel();
 
-    /** Initializes a MenuItemLabel with a Label, target and selector. */
     bool initWithLabel(Node* label, const ccMenuCallback& callback);
 
 protected:
     Color3B _colorBackup;
     float _originalScale;
+    bool _isHovered; // Tracks mouse hover state
 
-    /** The color that will be used to disable the item. */
     Color3B _disabledColor;
-    /** Label that is rendered. It can be any Node that implements the LabelProtocol. */
     Node* _label;
 
 private:

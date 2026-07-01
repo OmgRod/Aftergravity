@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include "2d/Label.h"
 #include "base/UTF8.h"
 #include <stdarg.h>
+#include <audio/AudioEngine.h>
 
 namespace ax
 {
@@ -191,6 +192,49 @@ bool MenuItemLabel::initWithLabel(Node* label, const ccMenuCallback& callback)
     setCascadeColorEnabled(true);
     setCascadeOpacityEnabled(true);
 
+    // Register mouse event listener for hover checking
+    auto mouseListener = EventListenerMouse::create();
+    
+    // Explicitly return a bool to satisfy std::function<bool(EventMouse*)>
+    mouseListener->onMouseMove = [this](EventMouse* event) -> bool {
+        if (!_enabled) return false;
+
+        // Convert cursor UI position into engine/scene coordinates
+        Vec2 mouseLocation = event->getLocationInView();
+        mouseLocation = Director::getInstance()->convertToGL(mouseLocation);
+        Vec2 localPoint = this->convertToNodeSpace(mouseLocation);
+
+        Rect boundingBox = Rect(0, 0, _contentSize.width, _contentSize.height);
+
+        if (boundingBox.containsPoint(localPoint))
+        {
+            if (!_isHovered)
+            {
+                _isHovered = true;
+                // Only color yellow if the item isn't actively being pressed down
+                if (!isSelected())
+                {
+                    this->setColor(Color3B(255, 255, 0)); // Hover Yellow
+                }
+            }
+        }
+        else
+        {
+            if (_isHovered)
+            {
+                _isHovered = false;
+                if (!isSelected())
+                {
+                    this->setColor(_colorBackup); // Restore default color
+                }
+            }
+        }
+        
+        return true; 
+    };
+
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
+
     return true;
 }
 
@@ -212,45 +256,38 @@ void MenuItemLabel::activate()
 {
     if (_enabled)
     {
-        this->stopAllActions();
-        this->setScale(_originalScale);
         MenuItem::activate();
+        AudioEngine::preload("sfx/blip.wav");
+        AudioEngine::play2dOnChannel(AudioEngine::SFX_CHANNEL, "sfx/blip.wav", false, 0.8f);
     }
 }
 
 void MenuItemLabel::selected()
 {
-    // subclass to change the default action
     if (_enabled)
     {
         MenuItem::selected();
-
-        Action* action = getActionByTag(kZoomActionTag);
-        if (action)
-        {
-            this->stopAction(action);
-        }
-        else
-        {
-            _originalScale = this->getScale();
-        }
-
-        Action* zoomAction = ScaleTo::create(0.1f, _originalScale * 1.2f);
-        zoomAction->setTag(kZoomActionTag);
-        this->runAction(zoomAction);
+        
+        // Removed old ScaleTo action logic. Switch color to Darker Yellow on press.
+        this->setColor(Color3B(150, 150, 0)); 
     }
 }
 
 void MenuItemLabel::unselected()
 {
-    // subclass to change the default action
     if (_enabled)
     {
         MenuItem::unselected();
-        this->stopActionByTag(kZoomActionTag);
-        Action* zoomAction = ScaleTo::create(0.1f, _originalScale);
-        zoomAction->setTag(kZoomActionTag);
-        this->runAction(zoomAction);
+
+        // Removed old ScaleTo action logic. Fall back to hover color or original color.
+        if (_isHovered)
+        {
+            this->setColor(Color3B(255, 255, 0)); 
+        }
+        else
+        {
+            this->setColor(_colorBackup);
+        }
     }
 }
 
@@ -269,49 +306,6 @@ void MenuItemLabel::setEnabled(bool enabled)
         }
     }
     MenuItem::setEnabled(enabled);
-}
-
-//
-// CCMenuItemAtlasFont
-//
-
-MenuItemAtlasFont* MenuItemAtlasFont::create(std::string_view value,
-                                             std::string_view charMapFile,
-                                             int itemWidth,
-                                             int itemHeight,
-                                             char startCharMap)
-{
-    return MenuItemAtlasFont::create(value, charMapFile, itemWidth, itemHeight, startCharMap,
-                                     (const ccMenuCallback&)nullptr);
-}
-
-MenuItemAtlasFont* MenuItemAtlasFont::create(std::string_view value,
-                                             std::string_view charMapFile,
-                                             int itemWidth,
-                                             int itemHeight,
-                                             char startCharMap,
-                                             const ccMenuCallback& callback)
-{
-    MenuItemAtlasFont* ret = new MenuItemAtlasFont();
-    ret->initWithString(value, charMapFile, itemWidth, itemHeight, startCharMap, callback);
-    ret->autorelease();
-    return ret;
-}
-
-bool MenuItemAtlasFont::initWithString(std::string_view value,
-                                       std::string_view charMapFile,
-                                       int itemWidth,
-                                       int itemHeight,
-                                       char startCharMap,
-                                       const ccMenuCallback& callback)
-{
-    AXASSERT(value.size() != 0, "value length must be greater than 0");
-    LabelAtlas* label = LabelAtlas::create(value, charMapFile, itemWidth, itemHeight, startCharMap);
-    if (MenuItemLabel::initWithLabel(label, callback))
-    {
-        // do something ?
-    }
-    return true;
 }
 
 //

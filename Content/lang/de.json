@@ -7,5 +7,13 @@
     "done": "Fertig!",
     "save": "Lade Speicherdatei...",
     "spritesheets": "Spritesheets werden geladen..."
+  },
+  "menu": {
+    "continue": "Fortsetzen",
+    "copyright": "© OmgRod {year}. Alle Rechte vorbehalten. Nicht weiterverteilen!",
+    "credits": "Kredite",
+    "exit": "Beenden",
+    "newgame": "Neues Spiel speichern",
+    "settings": "Einstellungen"
   }
 }
